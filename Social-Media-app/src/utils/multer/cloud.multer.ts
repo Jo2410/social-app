@@ -1,0 +1,55 @@
+import {v4 as uuid} from "uuid"
+import multer, { FileFilterCallback } from "multer";
+import { BadRequestException } from "../response/error.response";
+import { Request } from "express";
+import os from "os"
+
+export enum StorageEnum {
+  memory = "memory",
+  disk = "disk",
+}
+
+export const fileValidation = {
+  image: ["image/jpeg", "image/png", "image/gif"],
+};
+
+export const cloudFileUpload = ({
+  validation = [],
+  storageApproach = StorageEnum.memory,
+  maxSizeMB=2
+}: {
+  validation?: string[];
+  storageApproach?: StorageEnum;
+  maxSizeMB?:number
+}): multer.Multer => {
+  const storage =
+    storageApproach === StorageEnum.memory
+      ? multer.memoryStorage()
+      : multer.diskStorage({     // memory is faster than any thing and it return buffer
+        destination:os.tmpdir(),
+        filename:function (req:Request, file:Express.Multer.File, callback){
+            callback(null, `${uuid()}_${file.originalname}`)
+        }
+      }); 
+  function fileFilter(
+    req: Request,
+    file: Express.Multer.File,
+    callback: FileFilterCallback
+  ) {
+    if (!validation.includes(file.mimetype)) {
+    return  callback(
+        new BadRequestException("validation Error", {
+          validationErrors: [
+            {
+              key: "file",
+              issues: [{ path: "file", message: "in-valid file format" }],
+            },
+          ],
+        })
+      );
+    }
+
+    return callback(null, true)
+  }
+  return multer({ fileFilter,limits:{fileSize: 10 * 1024 * 1024} ,storage });
+};
